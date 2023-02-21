@@ -35,9 +35,11 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 
-# Environment Variables
+# Environmental stuff
 .Renviron
 .env
+.vscode
 
 # Local practice files
 practice/
+

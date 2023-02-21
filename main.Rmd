@@ -1,0 +1,132 @@
+---
+title: "GERMS BLAST RESULTS Explorer"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+source("setup.R")
+```
+
+Inputs {.sidebar data-width=300}
+=======================================================================
+
+```{r}
+pickerInput(
+  "qseqid_choice",
+  label = h4("Select qseqid:"),
+  choices = unique(blast_results$qseqid),
+  multiple = TRUE,
+  selected = unique(blast_results$qseqid)[1:10], 
+  options = pickerOptions(
+    liveSearch = TRUE,
+    actionsBox = TRUE
+  )
+)
+```
+
+```{r}
+div(
+  style="display:flex; column-gap: 10px;",
+textInput(
+  "pident_thresh",
+  label = h4("Min. % identity"),
+  value = 0
+),
+textInput(
+  "evalue_thresh",
+  label = h4("Max e-value"),
+  value = max(blast_results$evalue)
+)
+)
+```
+
+
+```{r}
+div(
+  style="display:flex; column-gap: 10px;",
+  textInput(
+    "min_length",
+    label = h4("Min. length"),
+    value = 0
+  ),
+  
+  textInput(
+    "max_length",
+    label = h4("Min. length"),
+    value = max(blast_results$length)
+  )
+)
+
+
+
+```
+
+
+
+```{r}
+qseqids_selected <- reactive(input$qseqid_choice)
+pident_thresh_selected <- reactive(input$pident_thresh %>% as.numeric())
+evalue_threshold <- reactive(input$evalue_thresh %>% as.numeric())
+min_length <- reactive(input$min_length %>% as.numeric())
+max_length <- reactive(input$max_length %>% as.numeric())
+```
+
+
+```{r}
+filtered_blast_results <- reactive(
+  blast_results %>%
+      filter(qseqid %in% qseqids_selected()) %>%
+      filter(pident > pident_thresh_selected()) %>% 
+      filter(evalue <= evalue_threshold()) %>% 
+      filter(between(length, min_length(), max_length()))
+)
+```
+
+# Tables
+
+## Column
+
+### Filtered table
+
+```{r}
+renderDT(
+  filtered_blast_results()
+)
+```
+
+
+# Plots
+
+## Column 
+
+### Number of hits by query sequence ID
+
+```{r}
+renderPlotly({
+  
+  filtered_blast_results() %>% 
+    count(qseqid) %>%
+    mutate(qseqid = fct_reorder(qseqid, -n)) %>% 
+    ggplot(aes(qseqid, n)) +
+    geom_col() +
+    labs(x = "Query Sequence",
+         y = "# Hits"
+    ) +
+    theme_light() +
+    theme(
+      panel.grid = element_blank(),
+      panel.grid.major.y = element_line(color = "gray90", size = 0.2),
+      panel.border = element_blank()
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1), 0)) 
+    
+
+})
+
+```
+
+
