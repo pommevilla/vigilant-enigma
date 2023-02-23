@@ -1,5 +1,5 @@
 ---
-title: "GERMS BLAST RESULTS Explorer"
+title: "GERMS BLAST Results Explorer"
 runtime: shiny
 output: 
   flexdashboard::flex_dashboard:
@@ -20,7 +20,7 @@ pickerInput(
   label = h4("Select qseqid:"),
   choices = unique(blast_results$qseqid),
   multiple = TRUE,
-  selected = unique(blast_results$qseqid)[1:10], 
+  selected = unique(blast_results$qseqid),
   options = pickerOptions(
     liveSearch = TRUE,
     actionsBox = TRUE
@@ -30,59 +30,112 @@ pickerInput(
 
 ```{r}
 div(
-  style="display:flex; column-gap: 10px;",
-textInput(
-  "pident_thresh",
-  label = h4("Min. % identity"),
-  value = 0
-),
-textInput(
-  "evalue_thresh",
-  label = h4("Max e-value"),
-  value = max(blast_results$evalue)
-)
+  style = "display:flex; column-gap: 10px;",
+  textInput(
+    "pident_thresh",
+    label = h4("Min. % identity"),
+    value = 0
+  ),
+  textInput(
+    "evalue_thresh",
+    label = h4("Max e-value"),
+    value = max(blast_results$evalue)
+  )
 )
 ```
 
 
 ```{r}
 div(
-  style="display:flex; column-gap: 10px;",
+  style = "display:flex; column-gap: 10px;",
   textInput(
     "min_length",
     label = h4("Min. length"),
     value = 0
   ),
-  
   textInput(
     "max_length",
-    label = h4("Min. length"),
+    label = h4("Max. length"),
     value = max(blast_results$length)
   )
 )
+```
+
+```{r}
+pickerInput(
+  "filename_choice",
+  label = h4("File name:"),
+  choices = unique(blast_results$file_name),
+  multiple = TRUE,
+  selected = unique(blast_results$file_name),
+  options = pickerOptions(
+    liveSearch = TRUE,
+    actionsBox = TRUE
+  )
+)
+```
+
+```{r}
+pickerInput(
+  "project_choice",
+  label = h4("Project name:"),
+  choices = unique(blast_results$project_name),
+  multiple = TRUE,
+  selected = unique(blast_results$project_name),
+  options = pickerOptions(
+    liveSearch = TRUE,
+    actionsBox = TRUE
+  )
+)
+```
 
 
+```{r}
+# Download buttons filtered csv
+uiOutput("downloadUI")
+```
 
+```{r}
+# Create the actual downloadButton
+output$downloadUI <- renderUI({
+  downloadButton("downBtn", "Download filtered table", style = "width:100%;")
+})
+
+# Add download handling
+output$downBtn <- downloadHandler(
+  filename = function() {
+    this_time <- format(Sys.time(), "%d%m%Y_%H%M%S")
+    paste0("filtered_results_", this_time, ".csv")
+  },
+  content = function(file) {
+    write.csv(filtered_blast_results(), file, row.names = FALSE)
+  }
+)
 ```
 
 
 
 ```{r}
+# Updating all the user choices
 qseqids_selected <- reactive(input$qseqid_choice)
 pident_thresh_selected <- reactive(input$pident_thresh %>% as.numeric())
 evalue_threshold <- reactive(input$evalue_thresh %>% as.numeric())
 min_length <- reactive(input$min_length %>% as.numeric())
 max_length <- reactive(input$max_length %>% as.numeric())
+filename_selected <- reactive(input$filename_choice)
+project_selected <- reactive(input$project_choice)
 ```
 
 
 ```{r}
 filtered_blast_results <- reactive(
   blast_results %>%
-      filter(qseqid %in% qseqids_selected()) %>%
-      filter(pident > pident_thresh_selected()) %>% 
-      filter(evalue <= evalue_threshold()) %>% 
-      filter(between(length, min_length(), max_length()))
+    filter(qseqid %in% qseqids_selected()) %>%
+    filter(pident > pident_thresh_selected()) %>%
+    filter(evalue <= evalue_threshold()) %>%
+    filter(between(length, min_length(), max_length())) %>%
+    filter(project_name %in% project_selected()) %>%
+    filter(file_name %in% filename_selected())
 )
 ```
 
@@ -90,11 +143,12 @@ filtered_blast_results <- reactive(
 
 ## Column
 
-### Filtered table
+### Filtered BLAST results table
 
 ```{r}
 renderDT(
-  filtered_blast_results()
+  filtered_blast_results(),
+  options = list(iDisplayLength = 25)
 )
 ```
 
@@ -107,14 +161,14 @@ renderDT(
 
 ```{r}
 renderPlotly({
-  
-  filtered_blast_results() %>% 
+  filtered_blast_results() %>%
     count(qseqid) %>%
-    mutate(qseqid = fct_reorder(qseqid, -n)) %>% 
+    mutate(qseqid = fct_reorder(qseqid, -n)) %>%
     ggplot(aes(qseqid, n)) +
     geom_col() +
-    labs(x = "Query Sequence",
-         y = "# Hits"
+    labs(
+      x = "Query Sequence",
+      y = "# Hits"
     ) +
     theme_light() +
     theme(
@@ -122,11 +176,8 @@ renderPlotly({
       panel.grid.major.y = element_line(color = "gray90", size = 0.2),
       panel.border = element_blank()
     ) +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.1), 0)) 
-    
-
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1), 0))
 })
-
 ```
 
 
